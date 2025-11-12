@@ -182,22 +182,32 @@ class GenSDF(base_pl.Model):
 
         return pred_sdf
 
-    def reconstruct(self, model, test_data, eval_dir, testopt=True, sampled_points=15000):
-        recon_samplesize_param = 256
-        recon_batch = 1000000
+    def reconstruct(self, model, test_data, eval_dir, testopt=True, sampled_points=15000, resolution=192, batch_size=64000):
+        # 使用传入的分辨率和批处理大小参数
+        recon_samplesize_param = resolution
+        recon_batch = batch_size
 
         gt_pc = test_data['point_cloud'].float()
-        #print("gt pc shape: ",gt_pc.shape)
         sampled_pc = gt_pc[:,torch.randperm(gt_pc.shape[1])[0:15000]]
-        #print("sampled pc shape: ",sampled_pc.shape)
+        
+        # 在第202行 with torch.no_grad(): 之前添加：
+        
+        # 保存用于重建的采样点云（优化前）
+        Path(eval_dir).mkdir(parents=True, exist_ok=True)
+        recon_pc_numpy = sampled_pc.squeeze(0).cpu().numpy()
+        recon_pc_file = os.path.join(eval_dir, "reconstruction_input_points.xyz")
+        np.savetxt(recon_pc_file, recon_pc_numpy, fmt='%.6f', delimiter=' ',
+                   header=f'{recon_pc_numpy.shape[0]} points used for reconstruction (before optimization)',
+                   comments='# ')
+        print(f"已保存重建输入点云到: {recon_pc_file}")
 
         if testopt:
             start_time = time.time()
             model = self.fast_opt(model, sampled_pc, num_iterations=800)
-
-        model.eval() 
         
 
+        model.eval()
+        
         with torch.no_grad():
             Path(eval_dir).mkdir(parents=True, exist_ok=True)
             mesh_filename = os.path.join(eval_dir, "reconstruct") #ply extension added in mesh.py
