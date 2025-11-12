@@ -28,6 +28,9 @@ def main():
      
     checkpoint = torch.load(resume, map_location=lambda storage, loc: storage)
 
+    # 提取输入文件名（不含扩展名）
+    input_filename = os.path.splitext(os.path.basename(args.file))[0]
+    
     file_ext = args.file[-4:]
     if file_ext == ".csv":
         f = pd.read_csv(args.file, sep=',',header=None).values
@@ -38,8 +41,7 @@ def main():
         print("add your extension type here! currently not supported...")
         exit()
 
-
-    sampled_points = 15000 # load more points for more accurate reconstruction 
+    sampled_points = args.num_points
     
     # recenter and normalize
     f -= np.mean(f, axis=0)
@@ -48,7 +50,40 @@ def main():
 
     f = torch.from_numpy(f)[torch.randperm(f.shape[0])[0:sampled_points]].float().unsqueeze(0)
     model.load_state_dict(checkpoint['state_dict'])
-    model.reconstruct(model, {'point_cloud':f, 'mesh_name':"loaded_file"}, eval_dir="single_recon", testopt=True, sampled_points=sampled_points) 
+    
+    # 添加清理显存
+    torch.cuda.empty_cache()
+    
+    # 创建包含输入文件名的输出目录
+    output_dir = os.path.join(args.outdir, input_filename)
+    os.makedirs(output_dir, exist_ok=True)  # 提前创建目录
+    
+    # 保存输入采样点云（归一化后的点云）
+    input_pc_numpy = f.squeeze(0).cpu().numpy()
+    input_pc_file = os.path.join(output_dir, "input_sampled_points.xyz")
+    np.savetxt(input_pc_file, input_pc_numpy, fmt='%.6f', delimiter=' ', 
+               header=f'{input_pc_numpy.shape[0]} points (normalized and centered)', 
+               comments='# ')
+    print(f"已保存输入采样点云到: {input_pc_file}")
+    
+    print(f"\n{'='*60}")
+    print(f"重建配置:")
+    print(f"  输入文件: {args.file}")
+    print(f"  采样点数: {sampled_points}")
+    print(f"  网格分辨率: {args.resolution}")
+    print(f"  批处理大小: {args.batch_size}")
+    print(f"  输出目录: {output_dir}")
+    print(f"{'='*60}\n")
+    
+    model.reconstruct(
+        model, 
+        {'point_cloud': f, 'mesh_name': input_filename}, 
+        eval_dir=output_dir, 
+        testopt=args.test_optimize,
+        sampled_points=sampled_points,
+        resolution=args.resolution,
+        batch_size=args.batch_size
+    ) 
 
 
 def init_model(model, specs, num_objects):
@@ -91,7 +126,41 @@ if __name__ == "__main__":
         required=True,
         help="input point cloud filepath, in csv or ply format",
     )
-
+    
+    arg_parser.add_argument(
+        "--resolution", "-res",
+        type=int,
+        default=192,
+        help="grid resolution for marching cubes (default: 192, higher=better quality but more memory)",
+    )
+    
+    arg_parser.add_argument(
+        "--batch_size", "-bs",
+        type=int,
+        default=64000,
+        help="batch size for SDF queries (default: 64000, lower if out of memory)",
+    )
+    
+    arg_parser.add_argument(
+        "--num_points", "-np",
+        type=int,
+        default=1000,
+        help="number of points to sample from input (default: 1000)",
+    )
+    
+    arg_parser.add_argument(
+        "--test_optimize",
+        action="store_true",
+        default=True,
+        help="perform test-time optimization (default: True)",
+    )
+    
+    arg_parser.add_argument(
+        "--no_test_optimize",
+        action="store_false",
+        dest="test_optimize",
+        help="skip test-time optimization (faster but lower quality)",
+    )
 
     args = arg_parser.parse_args()
     specs = json.load(open(os.path.join(args.exp_dir, "specs.json")))
