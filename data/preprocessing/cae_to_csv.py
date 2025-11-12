@@ -118,7 +118,9 @@ def cae_to_csv(cae_file_path, output_csv_path, recenter=True, normalize=True):
     
     # Save to CSV
     print(f"Saving CSV file: {output_csv_path}")
-    os.makedirs(os.path.dirname(output_csv_path), exist_ok=True)
+    output_dir = os.path.dirname(output_csv_path)
+    if output_dir:  # 只有当目录路径不为空时才创建目录
+        os.makedirs(output_dir, exist_ok=True)
     np.savetxt(output_csv_path, csv_data, delimiter=',', fmt='%.6f')
     
     print(f"Successfully converted {len(coordinates)} points to CSV format")
