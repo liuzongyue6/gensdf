@@ -99,6 +99,39 @@ python test.py -e config/gensdf/semi -r last
 ```
 
 
+## NEW: Point Cloud Normalization and SDF Fusion
+
+This repository now includes utilities for normalizing point clouds and fusing multiple parts using SDF operations.
+
+### Quick Start
+
+**Normalize point clouds to unified space:**
+```bash
+python utils/pointcloud_normalize.py -i part1.ply -o normalized.xyz -p transform.json
+```
+
+**Fuse two point clouds:**
+```bash
+python fusion_example.py -m config/gensdf/semi -p1 part1.ply -p2 part2.ply -o output
+```
+
+### Features
+- Point cloud normalization (center to origin, scale to [-1,1])
+- Save and apply transformation parameters across multiple parts
+- Two SDF fusion methods: union (minimum) and blend (smooth)
+- Automatic mesh reconstruction from fused SDFs
+
+### Documentation
+- [English Guide](FUSION_GUIDE.md) - Comprehensive fusion and normalization guide
+- [中文文档](README_CN.md) - Chinese documentation
+- [Implementation Summary](IMPLEMENTATION_SUMMARY.md) - Technical details
+
+### Demo
+```bash
+python demo_fusion.py  # Generate visualization demonstrations
+```
+
+
 ## References
 We adapt code from <br>
 DeepSDF: https://github.com/facebookresearch/DeepSDF <br>
